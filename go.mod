@@ -2,4 +2,4 @@ module github.com/informeai/termplay
 
 go 1.16
 
-require github.com/mum4k/termdash v0.16.0
+require github.com/gizak/termui/v3 v3.1.0 // indirect
