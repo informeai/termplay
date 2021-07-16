@@ -1,9 +1,67 @@
 package main
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+
 	ui "github.com/gizak/termui/v3"
 	"github.com/gizak/termui/v3/widgets"
 )
+
+func getLibraryOfArgs() []string {
+	if len(os.Args) > 1 {
+		rowsLibrary, err := getFiles(os.Args[1])
+		if err != nil {
+			panic(err)
+		}
+		return rowsLibrary
+	} else {
+		rowsLibrary, err := getFiles("")
+		if err != nil {
+			panic(err)
+		}
+		return rowsLibrary
+	}
+}
+
+func getFiles(path string) ([]string, error) {
+	var librarys []string
+	err := filepath.Walk(path, func(root string, info os.FileInfo, err error) error {
+
+		if info.IsDir() {
+			librarys = append(librarys, root)
+		}
+		return nil
+
+	})
+
+	return librarys, err
+}
+
+func listLibrary(paths []string) []string {
+	var rows []string
+	for _, p := range paths {
+		rows = append(rows, filepath.Base(p))
+	}
+	return rows
+}
+
+func listMusic(index int, paths []string) []string {
+	var musics []string
+	err := filepath.Walk(paths[index], func(root string, info os.FileInfo, err error) error {
+
+		if !info.IsDir() {
+			musics = append(musics, filepath.Base(root))
+		}
+		return nil
+
+	})
+	if err != nil {
+		panic(err)
+	}
+	return musics
+}
 
 func main() {
 	if err := ui.Init(); err != nil {
@@ -20,19 +78,25 @@ func main() {
 	shortsCuts.Title = "Keys"
 	shortsCuts.TitleStyle.Fg = ui.ColorYellow
 	shortsCuts.Block.BorderStyle.Fg = ui.ColorMagenta
-	shortsCuts.Text = "[ Enter ](fg-black,bg-white)[Select](fg-black,bg-green) " +
-		"[ p ](fg-black,bg-white)[Play/Pause](fg-black,bg-green) " +
-		"[Esc](fg-black,bg-white)[Stop](fg-black,bg-green) " +
-		"[Right](fg-black,bg-white)[+10s](fg-black,bg-green) " +
-		"[Left](fg-black,bg-white)[-10s](fg-black,bg-green) " +
-		"[ + ](fg-black,bg-white)[+Volume](fg-black,bg-green) " +
-		"[ - ](fg-black,bg-white)[-Volume](fg-black,bg-green) " +
-		"[ q ](fg-black,bg-white)[Exit](fg-black,bg-green) "
+	shortsCuts.Text = "[ Enter ](fg:green,bg:magenta)[ Select ](fg:magenta,bg:green) " +
+		"[ p ](fg:green,bg:magenta)[ Play/Pause ](fg:magenta,bg:green) " +
+		"[ Esc ](fg:green,bg:magenta)[ Stop ](fg:magenta,bg:green) " +
+		"[ Left ](fg:green,bg:magenta)[ Library ](fg:magenta,bg:green) " +
+		"[ Right ](fg:green,bg:magenta)[ Musics ](fg:magenta,bg:green) " +
+		"[ + ](fg:green,bg:magenta)[ +Volume ](fg:magenta,bg:green) " +
+		"[ - ](fg:green,bg:magenta)[ -Volume ](fg:magenta,bg:green) " +
+		"[ q ](fg:green,bg:red)[ Exit ](fg:magenta,bg:green) "
 	shortsCuts.Border = true
 	//library ui
 	library := widgets.NewList()
 	library.Border = true
 	library.Title = "Library"
+	//get library
+	rowsLibrary := getLibraryOfArgs()
+	library.Rows = listLibrary(rowsLibrary)
+
+	// verify row selected
+	library.SelectedRowStyle = ui.NewStyle(ui.ColorGreen, ui.ColorBlack)
 	library.TitleStyle.Fg = ui.ColorGreen
 	library.Block.BorderStyle.Fg = ui.ColorMagenta
 	// music ui
@@ -41,12 +105,16 @@ func main() {
 	music.Border = true
 	music.TitleStyle.Fg = ui.ColorCyan
 	music.Block.BorderStyle.Fg = ui.ColorMagenta
+	music.Rows = listMusic(library.SelectedRow, rowsLibrary)
+	//verify music
+
 	// time
 	currentTime := widgets.NewGauge()
 	currentTime.Title = "current time"
 	currentTime.TitleStyle.Fg = ui.ColorCyan
 	currentTime.Label = "00:00/00:00"
-	currentTime.Percent = 100
+	currentTime.LabelStyle.Fg = ui.ColorGreen
+	currentTime.Percent = 50
 	currentTime.BarColor = ui.ColorBlue
 	currentTime.PaddingTop = 1
 	currentTime.PaddingLeft = 1
@@ -55,12 +123,12 @@ func main() {
 	// volume
 	volume := widgets.NewGauge()
 	volume.Title = "volume"
-	volume.Label = "100%"
-	volume.LabelStyle = ui.NewStyle(ui.ColorClear)
-	volume.Percent = 100
+	volume.Percent = 40
+	volume.Label = fmt.Sprint(volume.Percent, "%")
 	volume.TitleStyle = ui.NewStyle(ui.ColorCyan)
 	volume.Block.BorderStyle = ui.NewStyle(ui.ColorMagenta)
 	volume.BarColor = ui.ColorBlue
+	volume.LabelStyle = ui.NewStyle(ui.ColorGreen)
 	volume.LabelStyle.Modifier = ui.Modifier(ui.AlignCenter)
 	volume.PaddingTop = 1
 	volume.PaddingLeft = 1
@@ -83,9 +151,54 @@ func main() {
 
 	ui.Render(mainContainer)
 	// events keys
+	var stateLibrayMusic = "library"
 	for e := range ui.PollEvents() {
 		if e.Type == ui.KeyboardEvent {
-			break
+			switch e.ID {
+			case "q":
+				return
+			case "j", "<Down>":
+				if stateLibrayMusic == "library" {
+					library.ScrollDown()
+					music.Rows = listMusic(library.SelectedRow, rowsLibrary)
+				} else {
+					music.ScrollDown()
+				}
+			case "k", "<Up>":
+				if stateLibrayMusic == "library" {
+					library.ScrollUp()
+					music.Rows = listMusic(library.SelectedRow, rowsLibrary)
+				} else {
+					music.ScrollUp()
+				}
+			case "=", "+":
+				if volume.Percent >= 0 && volume.Percent < 100 {
+					volume.Percent += 10
+					volume.Label = fmt.Sprint(volume.Percent, "%")
+				}
+			case "-", "_":
+				if volume.Percent > 0 && volume.Percent <= 100 {
+					volume.Percent -= 10
+					volume.Label = fmt.Sprint(volume.Percent, "%")
+				}
+			case "<Left>":
+				stateLibrayMusic = "library"
+				library.ScrollTop()
+				library.SelectedRowStyle = ui.NewStyle(ui.ColorGreen, ui.ColorBlack)
+				music.SelectedRowStyle = ui.NewStyle(ui.ColorWhite, ui.ColorBlack)
+				music.Rows = listMusic(library.SelectedRow, rowsLibrary)
+				music.ScrollTop()
+			case "<Right>":
+				stateLibrayMusic = "music"
+				library.SelectedRowStyle = ui.NewStyle(ui.ColorWhite, ui.ColorBlack)
+				music.SelectedRowStyle = ui.NewStyle(ui.ColorMagenta, ui.ColorBlack)
+				music.Rows = listMusic(library.SelectedRow, rowsLibrary)
+				music.ScrollTop()
+			default:
+
+			}
+
 		}
+		ui.Render(mainContainer)
 	}
 }
