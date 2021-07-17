@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	ui "github.com/gizak/termui/v3"
 	"github.com/gizak/termui/v3/widgets"
+	sound "github.com/informeai/termplay/sound"
 )
 
 func getLibraryOfArgs() []string {
@@ -38,6 +41,21 @@ func getFiles(path string) ([]string, error) {
 
 	return librarys, err
 }
+func getMusics(index int, paths []string) []string {
+	var musics []string
+	err := filepath.Walk(paths[index], func(root string, info os.FileInfo, err error) error {
+
+		if !info.IsDir() {
+			musics = append(musics, root)
+		}
+		return nil
+
+	})
+	if err != nil {
+		panic(err)
+	}
+	return musics
+}
 
 func listLibrary(paths []string) []string {
 	var rows []string
@@ -62,6 +80,9 @@ func listMusic(index int, paths []string) []string {
 	}
 	return musics
 }
+func verifyMusicSelected(index int, list []string) string {
+	return list[index]
+}
 
 func main() {
 	if err := ui.Init(); err != nil {
@@ -78,9 +99,7 @@ func main() {
 	shortsCuts.Title = "Keys"
 	shortsCuts.TitleStyle.Fg = ui.ColorYellow
 	shortsCuts.Block.BorderStyle.Fg = ui.ColorMagenta
-	shortsCuts.Text = "[ Enter ](fg:green,bg:magenta)[ Select ](fg:magenta,bg:green) " +
-		"[ p ](fg:green,bg:magenta)[ Play/Pause ](fg:magenta,bg:green) " +
-		"[ Esc ](fg:green,bg:magenta)[ Stop ](fg:magenta,bg:green) " +
+	shortsCuts.Text = "[ p ](fg:green,bg:magenta)[ Play/Stop ](fg:magenta,bg:green) " +
 		"[ Left ](fg:green,bg:magenta)[ Library ](fg:magenta,bg:green) " +
 		"[ Right ](fg:green,bg:magenta)[ Musics ](fg:magenta,bg:green) " +
 		"[ + ](fg:green,bg:magenta)[ +Volume ](fg:magenta,bg:green) " +
@@ -94,6 +113,7 @@ func main() {
 	//get library
 	rowsLibrary := getLibraryOfArgs()
 	library.Rows = listLibrary(rowsLibrary)
+	// rowsMusic := getMusics(library.SelectedRow, rowsLibrary)
 
 	// verify row selected
 	library.SelectedRowStyle = ui.NewStyle(ui.ColorGreen, ui.ColorBlack)
@@ -110,20 +130,20 @@ func main() {
 
 	// time
 	currentTime := widgets.NewGauge()
-	currentTime.Title = "current time"
+	currentTime.Title = "Stop"
 	currentTime.TitleStyle.Fg = ui.ColorCyan
 	currentTime.Label = "00:00/00:00"
 	currentTime.LabelStyle.Fg = ui.ColorGreen
-	currentTime.Percent = 50
+	currentTime.Percent = 0
 	currentTime.BarColor = ui.ColorBlue
 	currentTime.PaddingTop = 1
 	currentTime.PaddingLeft = 1
-	currentTime.PaddingRight = 10
+	currentTime.PaddingRight = 2
 	currentTime.Block.BorderStyle.Fg = ui.ColorMagenta
 	// volume
 	volume := widgets.NewGauge()
 	volume.Title = "volume"
-	volume.Percent = 40
+	volume.Percent = 80
 	volume.Label = fmt.Sprint(volume.Percent, "%")
 	volume.TitleStyle = ui.NewStyle(ui.ColorCyan)
 	volume.Block.BorderStyle = ui.NewStyle(ui.ColorMagenta)
@@ -133,6 +153,7 @@ func main() {
 	volume.PaddingTop = 1
 	volume.PaddingLeft = 1
 	volume.PaddingRight = 1
+	sound.SetVolume(volume.Percent)
 
 	// set mainContainer
 	mainContainer.Set(
@@ -151,7 +172,8 @@ func main() {
 
 	ui.Render(mainContainer)
 	// events keys
-	var stateLibrayMusic = "library"
+	var stateLibrayMusic string = "library"
+	var statePlay bool = false
 	for e := range ui.PollEvents() {
 		if e.Type == ui.KeyboardEvent {
 			switch e.ID {
@@ -175,11 +197,15 @@ func main() {
 				if volume.Percent >= 0 && volume.Percent < 100 {
 					volume.Percent += 10
 					volume.Label = fmt.Sprint(volume.Percent, "%")
+					sound.SetVolume(volume.Percent)
+
 				}
 			case "-", "_":
 				if volume.Percent > 0 && volume.Percent <= 100 {
 					volume.Percent -= 10
 					volume.Label = fmt.Sprint(volume.Percent, "%")
+					sound.SetVolume(volume.Percent)
+
 				}
 			case "<Left>":
 				stateLibrayMusic = "library"
@@ -194,6 +220,48 @@ func main() {
 				music.SelectedRowStyle = ui.NewStyle(ui.ColorMagenta, ui.ColorBlack)
 				music.Rows = listMusic(library.SelectedRow, rowsLibrary)
 				music.ScrollTop()
+			case "p":
+				pos := 0
+				ticker := time.NewTicker(time.Second)
+				_, cancel := context.WithCancel(context.Background())
+				currentTime.Label = fmt.Sprintf("00:00 / 00:00")
+				if stateLibrayMusic == "music" && statePlay == false {
+					currentTime.Title = "Playing"
+					rowsMusic := getMusics(library.SelectedRow, rowsLibrary)
+					path := verifyMusicSelected(music.SelectedRow, rowsMusic)
+					songLen, err := sound.PlaySong(path)
+					if err != nil {
+						panic(err)
+					}
+
+					go func() {
+						for i := 0; i < songLen; i++ {
+							time.Sleep(time.Second)
+							pos++
+							currentTime.Label = fmt.Sprintf("%d:%.2d / %d:%.2d", pos/60, pos%60, songLen/60, songLen%60)
+							currentTime.Percent = int((pos * 100) / songLen) //int((pos / songLen) * 100)
+							if pos == songLen || statePlay == false {
+								ticker.Stop()
+								pos = 0
+								songLen = 0
+								currentTime.Title = "Stop"
+								currentTime.Percent = 0
+								currentTime.Label = fmt.Sprintf("00:00 / 00:00")
+								cancel()
+							}
+							ui.Render(mainContainer)
+						}
+					}()
+					statePlay = true
+				} else if stateLibrayMusic == "music" && statePlay == true {
+					currentTime.Title = "Stop"
+					currentTime.Label = fmt.Sprintf("00:00 / 00:00")
+					ticker.Stop()
+					sound.PauseSong(statePlay)
+					statePlay = false
+					pos = 0
+					currentTime.Percent = 0
+				}
 			default:
 
 			}

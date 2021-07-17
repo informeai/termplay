@@ -1,4 +1,4 @@
-package main
+package sound
 
 import (
 	"os"
@@ -27,13 +27,13 @@ var volume = &effects.Volume{
 	Base: 2,
 }
 
-func playSong(input Song) (int, error) {
-	f, err := os.Open(input.path)
+func PlaySong(input string) (int, error) {
+	f, err := os.Open(input)
 	if err != nil {
 		return 0, err
 	}
 
-	switch fileExt := filepath.Ext(input.path); fileExt {
+	switch fileExt := filepath.Ext(input); fileExt {
 	case ".mp3":
 		s, format, err = mp3.Decode(f)
 	case ".wav":
@@ -51,20 +51,20 @@ func playSong(input Song) (int, error) {
 	return int(float32(s.Len()) / float32(format.SampleRate)), nil
 }
 
-func pauseSong(state bool) {
+func PauseSong(state bool) {
 	speaker.Lock()
 	mainCtrl.Paused = state
 	speaker.Unlock()
 }
 
-func seek(pos int) error {
+func Seek(pos int) error {
 	speaker.Lock()
 	err := s.Seek(pos * int(format.SampleRate))
 	speaker.Unlock()
 	return err
 }
 
-func setVolue(percent int) {
+func SetVolume(percent int) {
 	if percent == 0 {
 		volume.Silent = true
 	} else {
