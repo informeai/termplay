@@ -12,5 +12,5 @@ func main() {
 	}
 	defer termui.Close()
 	u := ui.NewUi()
-	u.Run("/Users/wellingtongadelha/Desktop/Musicas")
+	u.Run("<path of musics>")
 }
