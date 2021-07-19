@@ -134,14 +134,14 @@ func (u *Ui) runEvents(s *sound.Songs) {
 				if stateLibrayMusic == "library" {
 					u.library.ScrollDown()
 					u.music.Rows = s.GetNames(s.GetSongs(u.library.SelectedRow))
-				} else {
+				} else if statePlay == false {
 					u.music.ScrollDown()
 				}
 			case "k", "<Up>":
 				if stateLibrayMusic == "library" {
 					u.library.ScrollUp()
 					u.music.Rows = s.GetNames(s.GetSongs(u.library.SelectedRow))
-				} else {
+				} else if statePlay == false {
 					u.music.ScrollUp()
 				}
 			case "=", "+":
@@ -159,51 +159,89 @@ func (u *Ui) runEvents(s *sound.Songs) {
 
 				}
 			case "<Left>":
-				stateLibrayMusic = "library"
-				u.library.ScrollTop()
-				u.library.SelectedRowStyle = termui.NewStyle(termui.ColorGreen, termui.ColorBlack)
-				u.music.SelectedRowStyle = termui.NewStyle(termui.ColorWhite, termui.ColorBlack)
-				u.music.Rows = s.GetNames(s.GetSongs(u.library.SelectedRow))
-				u.music.ScrollTop()
+				if statePlay == false {
+					stateLibrayMusic = "library"
+					u.library.ScrollTop()
+					u.library.SelectedRowStyle = termui.NewStyle(termui.ColorGreen, termui.ColorBlack)
+					u.music.SelectedRowStyle = termui.NewStyle(termui.ColorWhite, termui.ColorBlack)
+					u.music.Rows = s.GetNames(s.GetSongs(u.library.SelectedRow))
+					u.music.ScrollTop()
+				}
 			case "<Right>":
-				stateLibrayMusic = "music"
-				u.library.SelectedRowStyle = termui.NewStyle(termui.ColorWhite, termui.ColorBlack)
-				u.music.SelectedRowStyle = termui.NewStyle(termui.ColorMagenta, termui.ColorBlack)
-				u.music.Rows = s.GetNames(s.GetSongs(u.library.SelectedRow))
-				u.music.ScrollTop()
+				if statePlay == false {
+					stateLibrayMusic = "music"
+					u.library.SelectedRowStyle = termui.NewStyle(termui.ColorWhite, termui.ColorBlack)
+					u.music.SelectedRowStyle = termui.NewStyle(termui.ColorMagenta, termui.ColorBlack)
+					u.music.Rows = s.GetNames(s.GetSongs(u.library.SelectedRow))
+					u.music.ScrollTop()
+				}
 			case "p":
+				actualIndex := u.music.SelectedRow
+				lenghtMusics := len(u.music.Rows)
 				pos := 0
 				ticker := time.NewTicker(time.Second)
 				_, cancel := context.WithCancel(context.Background())
 				u.currentTime.Label = fmt.Sprintf("00:00 / 00:00")
 				if stateLibrayMusic == "music" && statePlay == false {
-					u.currentTime.Title = "Playing"
-					path := s.MusicPath(u.music.SelectedRow, s.GetSongs(u.library.SelectedRow))
-					songLen, err := sound.PlaySong(path)
-					if err != nil {
-						panic(err)
-					}
 
 					go func() {
-						for i := 0; i < songLen; i++ {
+						var nextIndex int = 0
+						var songLen int = 0
+						u.currentTime.Title = "Playing"
+
+						path := s.MusicPath(actualIndex+nextIndex, s.GetSongs(u.library.SelectedRow))
+						songLen, err := sound.PlaySong(path)
+						if err != nil {
+							panic(err)
+						}
+
+						for {
 							time.Sleep(time.Second)
 							pos++
 							u.currentTime.Label = fmt.Sprintf("%d:%.2d / %d:%.2d", pos/60, pos%60, songLen/60, songLen%60)
 							u.currentTime.Percent = int((pos * 100) / songLen)
-							if pos == songLen || statePlay == false {
+							if statePlay == false {
+								defer cancel()
 								ticker.Stop()
 								pos = 0
 								songLen = 0
 								u.currentTime.Title = "Stop"
 								u.currentTime.Percent = 0
 								u.currentTime.Label = fmt.Sprintf("00:00 / 00:00")
-								cancel()
+								u.music.SelectedRow = 0
+								break
+
+							} else if pos == songLen && statePlay == true && u.music.SelectedRow < lenghtMusics-1 {
+								ticker.Stop()
+								ticker.Reset(time.Second)
+								pos = 0
+								u.currentTime.Percent = 0
+								u.currentTime.Label = fmt.Sprintf("00:00 / 00:00")
+								nextIndex++
+								u.music.SelectedRow = actualIndex + nextIndex
+								//next song
+								path := s.MusicPath(actualIndex+nextIndex, s.GetSongs(u.library.SelectedRow))
+								songLen, err := sound.PlaySong(path)
+								if err != nil {
+									panic(err)
+								}
+								u.currentTime.Title = "Playing"
+								u.currentTime.Label = fmt.Sprintf("%d:%.2d / %d:%.2d", pos/60, pos%60, songLen/60, songLen%60)
+								u.currentTime.Percent = int((pos * 100) / songLen)
+								termui.Render(u.mainContainer)
+							} else if pos == songLen && statePlay == true && u.music.SelectedRow == lenghtMusics-1 {
+								statePlay = false
+								u.currentTime.Title = "Stop"
+								u.currentTime.Percent = 0
+								u.currentTime.Label = fmt.Sprintf("00:00 / 00:00")
+								u.music.SelectedRow = 0
+								termui.Render(u.mainContainer)
 							}
 							termui.Render(u.mainContainer)
 						}
 					}()
 					statePlay = true
-				} else if stateLibrayMusic == "music" && statePlay == true {
+				} else if stateLibrayMusic == "music" && statePlay == true || actualIndex > lenghtMusics {
 					u.currentTime.Title = "Stop"
 					u.currentTime.Label = fmt.Sprintf("00:00 / 00:00")
 					ticker.Stop()
