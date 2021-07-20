@@ -35,4 +35,4 @@ PATH_MUSICS=< path of musics >
 
 [beep](https://github.com/faiface/beep)
 
-made with :heart: by informeai
+made with :heart:  by informeai
