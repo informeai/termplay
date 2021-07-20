@@ -1,6 +1,6 @@
-# :musical_note:Termplay
+# Termplay
 
-App to play music through the terminal.
+> :musical_note:App to play music through the terminal.
 
 ## Preview
 ![termplay img](./termplay.png)
