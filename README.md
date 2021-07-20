@@ -2,6 +2,9 @@
 
 App to play music through the terminal.
 
+## Preview
+![termplay img](./termplay.png)
+
 ## :tada:Install
 Clone of repository
 ```
