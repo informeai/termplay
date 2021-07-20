@@ -13,9 +13,13 @@ cd termplay
 go build .
 ```
 ## :fire:Usage
-
+Unix:
 ```
 ./termplay <path of musics>
+```
+Windows
+```
+termplay.exe <path of musics>
 ```
 **or**
 
