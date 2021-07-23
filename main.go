@@ -1,11 +1,10 @@
 package main
 
 import (
-	"os"
-
 	termui "github.com/gizak/termui/v3"
 	ui "github.com/informeai/termplay/ui"
 	"github.com/joho/godotenv"
+	"os"
 )
 
 func main() {

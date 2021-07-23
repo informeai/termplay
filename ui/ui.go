@@ -187,10 +187,11 @@ func (u *Ui) runEvents(s *sound.Songs) {
 					go func() {
 						var nextIndex int = 0
 						var songLen int = 0
+						var err error
 						u.currentTime.Title = "Playing"
 
 						path := s.MusicPath(actualIndex+nextIndex, s.GetSongs(u.library.SelectedRow))
-						songLen, err := sound.PlaySong(path)
+						songLen, err = sound.PlaySong(path)
 						if err != nil {
 							panic(err)
 						}
@@ -213,6 +214,7 @@ func (u *Ui) runEvents(s *sound.Songs) {
 
 							} else if pos == songLen && statePlay == true && u.music.SelectedRow < lenghtMusics-1 {
 								ticker.Stop()
+								sound.PauseSong(statePlay)
 								ticker.Reset(time.Second)
 								pos = 0
 								u.currentTime.Percent = 0
@@ -221,7 +223,7 @@ func (u *Ui) runEvents(s *sound.Songs) {
 								u.music.SelectedRow = actualIndex + nextIndex
 								//next song
 								path := s.MusicPath(actualIndex+nextIndex, s.GetSongs(u.library.SelectedRow))
-								songLen, err := sound.PlaySong(path)
+								songLen, err = sound.PlaySong(path)
 								if err != nil {
 									panic(err)
 								}
